@@ -61,7 +61,10 @@ export class RecipeStorageService {
   private static instance: RecipeStorageService;
 
   private constructor() {
-    this.initializeStorage();
+    // Only initialize storage in browser environment
+    if (typeof window !== 'undefined' && window.localStorage) {
+      this.initializeStorage();
+    }
   }
 
   public static getInstance(): RecipeStorageService {
@@ -71,9 +74,18 @@ export class RecipeStorageService {
     return RecipeStorageService.instance;
   }
 
+  private isInitialized = false;
+
   // Initialize storage and handle migrations
   private initializeStorage(): void {
+    if (this.isInitialized) return;
+    
     try {
+      // Check if we're in a browser environment
+      if (typeof window === 'undefined' || !window.localStorage) {
+        return;
+      }
+      
       const currentVersion = this.getStorageVersion();
       
       if (!currentVersion) {
@@ -85,12 +97,19 @@ export class RecipeStorageService {
       }
       
       this.updateMetadata();
+      this.isInitialized = true;
     } catch (error) {
-      throw new StorageError(
-        'Failed to initialize storage',
-        'initialize',
-        error instanceof Error ? error : new Error(String(error))
-      );
+      console.error('Storage initialization error:', error);
+      // Don't throw error, just log it and continue
+      // This allows the app to work even if storage fails
+      this.isInitialized = false;
+    }
+  }
+
+  // Ensure storage is initialized before operations
+  private ensureInitialized(): void {
+    if (!this.isInitialized && typeof window !== 'undefined' && window.localStorage) {
+      this.initializeStorage();
     }
   }
 
@@ -129,7 +148,7 @@ export class RecipeStorageService {
 
   private migrateFromV0_9_0ToV1_0_0(): void {
     // Example migration: add missing fields to existing recipes
-    const recipes = this.getAllRecipes();
+    const recipes = this.getItem<Recipe[]>(STORAGE_KEYS.RECIPES) || [];
     const updatedRecipes = recipes.map(recipe => ({
       ...recipe,
       difficulty: recipe.difficulty || 'Medium',
@@ -140,9 +159,10 @@ export class RecipeStorageService {
   }
 
   private updateMetadata(): void {
-    const recipes = this.getAllRecipes();
-    const folders = this.getAllFolders();
-    const tags = this.getAllTags();
+    // Use direct getItem calls to avoid circular dependency during initialization
+    const recipes = this.getItem<Recipe[]>(STORAGE_KEYS.RECIPES) || [];
+    const folders = this.getItem<Folder[]>(STORAGE_KEYS.FOLDERS) || [];
+    const tags = this.getItem<Tag[]>(STORAGE_KEYS.TAGS) || [];
 
     const metadata: StorageMetadata = {
       version: CURRENT_VERSION,
@@ -158,6 +178,11 @@ export class RecipeStorageService {
   // Generic storage methods with error handling
   private getItem<T>(key: string): T | null {
     try {
+      // Check if we're in a browser environment
+      if (typeof window === 'undefined' || !window.localStorage) {
+        return null;
+      }
+      
       const item = localStorage.getItem(key);
       if (!item) return null;
       
@@ -182,6 +207,11 @@ export class RecipeStorageService {
 
   private setItem<T>(key: string, value: T): void {
     try {
+      // Check if we're in a browser environment
+      if (typeof window === 'undefined' || !window.localStorage) {
+        return;
+      }
+      
       const serialized = JSON.stringify(value, this.dateReplacer);
       localStorage.setItem(key, serialized);
     } catch (error) {
@@ -195,6 +225,11 @@ export class RecipeStorageService {
 
   private removeItem(key: string): void {
     try {
+      // Check if we're in a browser environment
+      if (typeof window === 'undefined' || !window.localStorage) {
+        return;
+      }
+      
       localStorage.removeItem(key);
     } catch (error) {
       throw new StorageError(
@@ -234,15 +269,18 @@ export class RecipeStorageService {
 
   // Recipe CRUD operations
   public getAllRecipes(): Recipe[] {
+    this.ensureInitialized();
     return this.getItem<Recipe[]>(STORAGE_KEYS.RECIPES) || [];
   }
 
   public getRecipeById(id: string): Recipe | null {
+    this.ensureInitialized();
     const recipes = this.getAllRecipes();
     return recipes.find(recipe => recipe.id === id) || null;
   }
 
   public createRecipe(input: CreateRecipeInput): Recipe {
+    this.ensureInitialized();
     try {
       const now = getCurrentTimestamp();
       const recipe: Recipe = {
@@ -280,6 +318,7 @@ export class RecipeStorageService {
   }
 
   public updateRecipe(input: UpdateRecipeInput): Recipe {
+    this.ensureInitialized();
     try {
       const recipes = this.getAllRecipes();
       const index = recipes.findIndex(recipe => recipe.id === input.id);
@@ -328,6 +367,7 @@ export class RecipeStorageService {
   }
 
   public deleteRecipe(id: string): boolean {
+    this.ensureInitialized();
     try {
       const recipes = this.getAllRecipes();
       const index = recipes.findIndex(recipe => recipe.id === id);
@@ -360,15 +400,18 @@ export class RecipeStorageService {
   } 
  // Folder CRUD operations
   public getAllFolders(): Folder[] {
+    this.ensureInitialized();
     return this.getItem<Folder[]>(STORAGE_KEYS.FOLDERS) || [];
   }
 
   public getFolderById(id: string): Folder | null {
+    this.ensureInitialized();
     const folders = this.getAllFolders();
     return folders.find(folder => folder.id === id) || null;
   }
 
   public createFolder(input: CreateFolderInput): Folder {
+    this.ensureInitialized();
     try {
       const folder: Folder = {
         id: generateFolderId(),
@@ -399,6 +442,7 @@ export class RecipeStorageService {
   }
 
   public updateFolder(input: UpdateFolderInput): Folder {
+    this.ensureInitialized();
     try {
       const folders = this.getAllFolders();
       const index = folders.findIndex(folder => folder.id === input.id);
@@ -438,6 +482,7 @@ export class RecipeStorageService {
   }
 
   public deleteFolder(id: string): boolean {
+    this.ensureInitialized();
     try {
       const folders = this.getAllFolders();
       const folder = folders.find(f => f.id === id);
@@ -525,20 +570,24 @@ export class RecipeStorageService {
 
   // Tag CRUD operations
   public getAllTags(): Tag[] {
+    this.ensureInitialized();
     return this.getItem<Tag[]>(STORAGE_KEYS.TAGS) || [];
   }
 
   public getTagById(id: string): Tag | null {
+    this.ensureInitialized();
     const tags = this.getAllTags();
     return tags.find(tag => tag.id === id) || null;
   }
 
   public getTagByName(name: string): Tag | null {
+    this.ensureInitialized();
     const tags = this.getAllTags();
     return tags.find(tag => tag.name.toLowerCase() === name.toLowerCase()) || null;
   }
 
   public createTag(input: CreateTagInput): Tag {
+    this.ensureInitialized();
     try {
       // Check if tag already exists
       const existingTag = this.getTagByName(input.name);
@@ -568,6 +617,7 @@ export class RecipeStorageService {
   }
 
   public updateTag(id: string, input: Partial<CreateTagInput>): Tag {
+    this.ensureInitialized();
     try {
       const tags = this.getAllTags();
       const index = tags.findIndex(tag => tag.id === id);
@@ -596,6 +646,7 @@ export class RecipeStorageService {
   }
 
   public deleteTag(id: string): boolean {
+    this.ensureInitialized();
     try {
       const tags = this.getAllTags();
       const tag = tags.find(t => t.id === id);
@@ -631,8 +682,8 @@ export class RecipeStorageService {
 
   private updateTagCounts(): void {
     try {
-      const recipes = this.getAllRecipes();
-      const tags = this.getAllTags();
+      const recipes = this.getItem<Recipe[]>(STORAGE_KEYS.RECIPES) || [];
+      const tags = this.getItem<Tag[]>(STORAGE_KEYS.TAGS) || [];
       
       // Count tag usage
       const tagCounts = new Map<string, number>();
@@ -674,6 +725,7 @@ export class RecipeStorageService {
 
   // Search and filter operations
   public searchRecipes(filters: SearchFilters): SearchResult {
+    this.ensureInitialized();
     try {
       let recipes = this.getAllRecipes();
 
@@ -742,6 +794,7 @@ export class RecipeStorageService {
 
   // Utility methods
   public getStorageMetadata(): StorageMetadata | null {
+    this.ensureInitialized();
     return this.getItem<StorageMetadata>(STORAGE_KEYS.METADATA);
   }
 
@@ -751,6 +804,7 @@ export class RecipeStorageService {
     tags: Tag[];
     metadata: StorageMetadata | null;
   } {
+    this.ensureInitialized();
     try {
       return {
         recipes: this.getAllRecipes(),
@@ -772,6 +826,7 @@ export class RecipeStorageService {
     folders: Folder[];
     tags: Tag[];
   }): void {
+    this.ensureInitialized();
     try {
       // Validate data structure
       if (!Array.isArray(data.recipes) || !Array.isArray(data.folders) || !Array.isArray(data.tags)) {
@@ -798,6 +853,7 @@ export class RecipeStorageService {
   }
 
   public clearAllData(): void {
+    this.ensureInitialized();
     try {
       this.removeItem(STORAGE_KEYS.RECIPES);
       this.removeItem(STORAGE_KEYS.FOLDERS);
@@ -816,7 +872,13 @@ export class RecipeStorageService {
   }
 
   public getStorageSize(): number {
+    this.ensureInitialized();
     try {
+      // Check if we're in a browser environment
+      if (typeof window === 'undefined' || !window.localStorage) {
+        return 0;
+      }
+      
       let totalSize = 0;
       Object.values(STORAGE_KEYS).forEach(key => {
         const item = localStorage.getItem(key);
@@ -838,28 +900,26 @@ export class RecipeStorageService {
 // Export singleton instance
 export const storageService = RecipeStorageService.getInstance();
 
-// Export convenience functions
-export const {
-  getAllRecipes,
-  getRecipeById,
-  createRecipe,
-  updateRecipe,
-  deleteRecipe,
-  getAllFolders,
-  getFolderById,
-  createFolder,
-  updateFolder,
-  deleteFolder,
-  getAllTags,
-  getTagById,
-  getTagByName,
-  createTag,
-  updateTag,
-  deleteTag,
-  searchRecipes,
-  exportData,
-  importData,
-  clearAllData,
-  getStorageMetadata,
-  getStorageSize,
-} = storageService;
+// Export convenience functions with proper binding
+export const getAllRecipes = () => storageService.getAllRecipes();
+export const getRecipeById = (id: string) => storageService.getRecipeById(id);
+export const createRecipe = (input: CreateRecipeInput) => storageService.createRecipe(input);
+export const updateRecipe = (input: UpdateRecipeInput) => storageService.updateRecipe(input);
+export const deleteRecipe = (id: string) => storageService.deleteRecipe(id);
+export const getAllFolders = () => storageService.getAllFolders();
+export const getFolderById = (id: string) => storageService.getFolderById(id);
+export const createFolder = (input: CreateFolderInput) => storageService.createFolder(input);
+export const updateFolder = (input: UpdateFolderInput) => storageService.updateFolder(input);
+export const deleteFolder = (id: string) => storageService.deleteFolder(id);
+export const getAllTags = () => storageService.getAllTags();
+export const getTagById = (id: string) => storageService.getTagById(id);
+export const getTagByName = (name: string) => storageService.getTagByName(name);
+export const createTag = (input: CreateTagInput) => storageService.createTag(input);
+export const updateTag = (id: string, input: Partial<CreateTagInput>) => storageService.updateTag(id, input);
+export const deleteTag = (id: string) => storageService.deleteTag(id);
+export const searchRecipes = (filters: SearchFilters) => storageService.searchRecipes(filters);
+export const exportData = () => storageService.exportData();
+export const importData = (data: { recipes: Recipe[]; folders: Folder[]; tags: Tag[] }) => storageService.importData(data);
+export const clearAllData = () => storageService.clearAllData();
+export const getStorageMetadata = () => storageService.getStorageMetadata();
+export const getStorageSize = () => storageService.getStorageSize();

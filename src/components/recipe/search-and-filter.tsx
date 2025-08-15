@@ -220,15 +220,15 @@ export function SearchAndFilter({
 
         {/* Prep Time Filter */}
         <Select
-          value={prepTimeMax?.toString() || ''}
-          onValueChange={(value) => setPrepTimeMax(value ? parseInt(value) : undefined)}
+          value={prepTimeMax?.toString() || 'any'}
+          onValueChange={(value) => setPrepTimeMax(value === 'any' ? undefined : parseInt(value))}
         >
           <SelectTrigger className="w-auto h-8">
             <Clock className="mr-2 h-3 w-3" />
             <SelectValue placeholder="Prep time" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">Any prep time</SelectItem>
+            <SelectItem value="any">Any prep time</SelectItem>
             <SelectItem value="15">≤ 15 min</SelectItem>
             <SelectItem value="30">≤ 30 min</SelectItem>
             <SelectItem value="60">≤ 1 hour</SelectItem>
@@ -238,15 +238,15 @@ export function SearchAndFilter({
 
         {/* Cook Time Filter */}
         <Select
-          value={cookTimeMax?.toString() || ''}
-          onValueChange={(value) => setCookTimeMax(value ? parseInt(value) : undefined)}
+          value={cookTimeMax?.toString() || 'any'}
+          onValueChange={(value) => setCookTimeMax(value === 'any' ? undefined : parseInt(value))}
         >
           <SelectTrigger className="w-auto h-8">
             <Users className="mr-2 h-3 w-3" />
             <SelectValue placeholder="Cook time" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">Any cook time</SelectItem>
+            <SelectItem value="any">Any cook time</SelectItem>
             <SelectItem value="15">≤ 15 min</SelectItem>
             <SelectItem value="30">≤ 30 min</SelectItem>
             <SelectItem value="60">≤ 1 hour</SelectItem>

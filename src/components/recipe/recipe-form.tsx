@@ -27,6 +27,7 @@ import {
 import { CreateRecipeInput, CreateIngredientInput, Recipe, Tag, DifficultyLevel } from '@/lib/types';
 import { validateRecipe, sanitizeRecipeInput } from '@/lib/validation';
 import { getAllTags } from '@/lib/storage';
+import { EnhancedTagInput } from '@/components/tag/enhanced-tag-input';
 
 // Form validation schema using Zod
 const ingredientSchema = z.object({
@@ -60,10 +61,6 @@ interface RecipeFormProps {
 }
 
 export function RecipeForm({ recipe, onSubmit, onCancel, isLoading = false }: RecipeFormProps) {
-  const [availableTags, setAvailableTags] = useState<Tag[]>([]);
-  const [tagInput, setTagInput] = useState('');
-  const [filteredTags, setFilteredTags] = useState<Tag[]>([]);
-  const [showTagSuggestions, setShowTagSuggestions] = useState(false);
 
   const form = useForm<RecipeFormData>({
     resolver: zodResolver(recipeFormSchema),
@@ -101,30 +98,7 @@ export function RecipeForm({ recipe, onSubmit, onCancel, isLoading = false }: Re
     name: 'instructions',
   });
 
-  // Load available tags on component mount
-  useEffect(() => {
-    try {
-      const tags = getAllTags();
-      setAvailableTags(tags);
-    } catch (error) {
-      console.error('Failed to load tags:', error);
-    }
-  }, []);
 
-  // Filter tags based on input
-  useEffect(() => {
-    if (tagInput.trim()) {
-      const filtered = availableTags.filter(tag =>
-        tag.name.toLowerCase().includes(tagInput.toLowerCase()) &&
-        !form.getValues('tags').includes(tag.name)
-      );
-      setFilteredTags(filtered);
-      setShowTagSuggestions(filtered.length > 0);
-    } else {
-      setFilteredTags([]);
-      setShowTagSuggestions(false);
-    }
-  }, [tagInput, availableTags, form]);
 
   const handleSubmit = async (data: RecipeFormData) => {
     try {
@@ -164,30 +138,7 @@ export function RecipeForm({ recipe, onSubmit, onCancel, isLoading = false }: Re
     }
   };
 
-  const addTag = (tagName: string) => {
-    const currentTags = form.getValues('tags');
-    if (tagName.trim() && !currentTags.includes(tagName.trim())) {
-      form.setValue('tags', [...currentTags, tagName.trim()]);
-      setTagInput('');
-      setShowTagSuggestions(false);
-    }
-  };
 
-  const removeTag = (tagToRemove: string) => {
-    const currentTags = form.getValues('tags');
-    form.setValue('tags', currentTags.filter(tag => tag !== tagToRemove));
-  };
-
-  const handleTagInputKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      if (tagInput.trim()) {
-        addTag(tagInput);
-      }
-    } else if (e.key === 'Escape') {
-      setShowTagSuggestions(false);
-    }
-  };
 
   return (
     <Card className="w-full max-w-4xl mx-auto">
@@ -467,50 +418,15 @@ export function RecipeForm({ recipe, onSubmit, onCancel, isLoading = false }: Re
             <div className="space-y-4">
               <h3 className="text-lg font-semibold">Tags</h3>
               
-              <div className="space-y-2">
-                <Label htmlFor="tag-input">Add Tags</Label>
-                <div className="relative">
-                  <Input
-                    id="tag-input"
-                    placeholder="Type to add tags..."
-                    value={tagInput}
-                    onChange={(e) => setTagInput(e.target.value)}
-                    onKeyDown={handleTagInputKeyDown}
-                    onFocus={() => tagInput.trim() && setShowTagSuggestions(filteredTags.length > 0)}
-                    onBlur={() => setTimeout(() => setShowTagSuggestions(false), 200)}
-                  />
-                  
-                  {showTagSuggestions && (
-                    <div className="absolute z-10 w-full mt-1 bg-background border rounded-md shadow-lg max-h-40 overflow-y-auto">
-                      {filteredTags.map((tag) => (
-                        <button
-                          key={tag.id}
-                          type="button"
-                          className="w-full px-3 py-2 text-left hover:bg-accent hover:text-accent-foreground"
-                          onClick={() => addTag(tag.name)}
-                        >
-                          {tag.name}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {form.watch('tags').map((tag) => (
-                    <Badge key={tag} variant="secondary" className="flex items-center gap-1">
-                      {tag}
-                      <button
-                        type="button"
-                        onClick={() => removeTag(tag)}
-                        className="ml-1 hover:text-destructive"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </Badge>
-                  ))}
-                </div>
-              </div>
+              <EnhancedTagInput
+                selectedTags={form.watch('tags')}
+                onTagsChange={(tags) => form.setValue('tags', tags)}
+                placeholder="Type to add tags..."
+                disabled={isLoading}
+                maxTags={20}
+                allowCustomTags={true}
+                showPopularTags={true}
+              />
             </div>
 
             <Separator />
